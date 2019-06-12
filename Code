@@ -1,0 +1,107 @@
+#include"opencv2\opencv.hpp"
+#include <opencv2\highgui\highgui.hpp>
+#include <stdint.h>
+#include <stdio.h>      
+#include <math.h>       
+#define PI 3.14159265
+using namespace cv;
+using namespace std;
+Mat rotated(Mat src, Size ssize, Point2f center, double angle)
+{
+	angle *= (-1)*PI / 180;
+	double alpha = std::cos(angle);
+	double beta = std::sin(angle);
+	//double data[2][3] = { { alpha, beta, (1 - alpha)*center.x - beta*center.y },{ -beta, alpha, beta*center.x + (1 - alpha)*center.y } };
+	Point2d pt[4];
+	double b = alpha*0.5;
+	double a = beta*0.5;
+	pt[0].x = center.x - a*ssize.height - b*ssize.width;
+	pt[0].y = center.y + b*ssize.height - a*ssize.width;
+	pt[1].x = center.x + a*ssize.height - b*ssize.width;
+	pt[1].y = center.y - b*ssize.height - a*ssize.width;
+	pt[2].x = 2 * center.x - pt[0].x;
+	pt[2].y = 2 * center.y - pt[0].y;
+	pt[3].x = 2 * center.x - pt[1].x;
+	pt[3].y = 2 * center.y - pt[1].y;
+	Rect2d r((min(min(min(pt[0].x, pt[1].x), pt[2].x), pt[3].x)),
+		(min(min(min(pt[0].y, pt[1].y), pt[2].y), pt[3].y)),
+		(max(max(max(pt[0].x, pt[1].x), pt[2].x), pt[3].x)),
+		(max(max(max(pt[0].y, pt[1].y), pt[2].y), pt[3].y)));
+	r.width -= r.x - 1;
+	r.height -= r.y - 1;
+	Size size = r.size();
+	//data[0][2] += size.width / 2.0 - src.cols / 2.0;
+	//data[1][2] += size.height / 2.0 - src.rows / 2.0;
+	Mat dst(size.height, size.width, src.type());
+	Point2f new_center ((dst.cols - 1) / 2.0, (dst.rows - 1) / 2.0);
+	double data[2][3] = { { alpha, beta, (1 - alpha)*new_center.x - beta*new_center.y },{ -beta, alpha, beta*new_center.x + (1 - alpha)*new_center.y } };
+	data[0][2] -= size.width / 2.0 - src.cols / 2.0;
+	data[1][2] -= size.height / 2.0 - src.rows / 2.0;
+	for (double r = 0;r < dst.rows;r++)
+	{
+		for (double c = 0;c < dst.cols;c++)
+		{
+			double x_new = (data[0][0] * c) + (data[0][1] * r) + data[0][2];
+			double y_new = (data[1][0] * c) + (data[1][1] * r) + data[1][2];
+			int iFloorX = (int)(floor(x_new));
+			int iFloorY = (int)(floor(y_new));
+			int iCeilingX = (int)(ceil(x_new));
+			int iCeilingY = (int)(ceil(y_new));
+			int iWidth = src.cols;
+			int iHeight = src.rows;
+			// check bounds
+			if (iFloorX < 0 || iCeilingX < 0 || iFloorX >= iWidth || iCeilingX >= iWidth || iFloorY < 0 || iCeilingY < 0 || iFloorY >= iHeight || iCeilingY >= iHeight) continue;
+
+			double fDeltaX = x_new - (double)iFloorX;
+			double fDeltaY = y_new - (double)iFloorY;
+
+		cv::Vec3b clrTopLeft= src.at<Vec3b>(iFloorY, iFloorX);
+		cv::Vec3b clrTopRight = src.at<Vec3b>(iCeilingY, iFloorX);
+		cv::Vec3b clrBottomLeft = src.at<Vec3b>(iFloorY, iCeilingX);
+		cv::Vec3b clrBottomRight = src.at<Vec3b>(iCeilingY, iCeilingX);
+
+		float fTopRed = (1 - fDeltaX) * clrTopLeft[0] + fDeltaX * clrTopRight[0];
+		float fTopGreen = (1 - fDeltaX) * clrTopLeft[1] + fDeltaX * clrTopRight[1];
+		float fTopBlue = (1 - fDeltaX) * clrTopLeft[2] + fDeltaX * clrTopRight[2];
+
+		float fBottomRed = (1 - fDeltaX) * clrBottomLeft[0] + fDeltaX * clrBottomRight[0];
+		float fBottomGreen = (1 - fDeltaX) * clrBottomLeft[1] + fDeltaX * clrBottomRight[1];
+		float fBottomBlue = (1 - fDeltaX) * clrBottomLeft[2] + fDeltaX * clrBottomRight[2];
+			
+			int iRed = (int)(round((1 - fDeltaY) * fTopRed + fDeltaY * fBottomRed));
+			int iGreen = (int)(round((1 - fDeltaY) * fTopGreen + fDeltaY * fBottomGreen));
+			int iBlue = (int)(round((1 - fDeltaY) * fTopBlue + fDeltaY * fBottomBlue));
+
+			if (iRed < 0) iRed = 0;
+			if (iRed > 255) iRed = 255;
+			if (iGreen < 0) iGreen = 0;
+			if (iGreen > 255) iGreen = 255;
+			if (iBlue < 0) iBlue = 0;
+			if (iBlue > 255) iBlue = 255;
+			dst.at<Vec3b>(r,c)[0] = iRed;
+			dst.at<Vec3b>(r, c)[1] = iGreen;
+			dst.at<Vec3b>(r, c)[2] = iBlue;
+		}
+	}
+	cout << angle;
+	return dst;
+}
+
+int main()
+{
+	cv::Mat src = cv::imread("./ironman.jpg", IMREAD_COLOR);
+
+	cv::namedWindow("input", WINDOW_FREERATIO);
+
+	imshow("input", src);
+
+	double angle = 180;
+	cv::Point2d center((src.cols - 1) / 2.0, (src.rows - 1) / 2.0);
+	cv::Mat dst;
+	dst = rotated(src, src.size(), center, angle);
+	cv::namedWindow("rotated_im", WINDOW_FREERATIO);
+	cv::imshow("rotated_im", dst);
+	cv::waitKey(0);
+
+	return 0;
+}
