@@ -1,1 +1,1 @@
-# Rotation-of-image-without-using-predefined-opencv-functionality
+# Rotation-of-image-without-using-predefined-opencv-functionality.
